@@ -21,6 +21,27 @@ func GetUUID() string {
 	return strings.Replace(u.String(), "-", "", -1)
 }
 
+func GetNewAddress() (string, string, string) {
+	priv, err := btcec.NewPrivateKey(btcec.S256())
+	if err != nil {
+		return "", "", ""
+	}
+
+	wif, err := btcutil.NewWIF(priv, &chaincfg.MainNetParams, true)
+	if err != nil {
+		return "", "", ""
+	}
+
+	pubKeyBytes := wif.SerializePubKey()
+
+	address, err := btcutil.NewAddressPubKey(pubKeyBytes, &chaincfg.MainNetParams)
+	if err != nil {
+		return "", "", ""
+	}
+
+	return wif.String(), hex.EncodeToString(pubKeyBytes), address.EncodeAddress()
+}
+
 func Verify(pubKeyHexStr, originStr, signHexStr string) (bool, error) {
 	if pubKeyHexStr == "" || originStr == "" || signHexStr == "" {
 		return false, nil

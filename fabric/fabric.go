@@ -13,8 +13,9 @@ import (
 )
 
 type Wallet struct {
-	Address string
-	PrivKey string
+	Address string `json:"address"`
+	PubKey  string `json:"pubKey"`
+	PrivKey string `json:"privKey"`
 }
 
 type FabricClient struct {
@@ -306,17 +307,17 @@ func (f *FabricClient) fabricTest(richWallets, airWallets []*Wallet) error {
 func (f *FabricClient) testing(wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	richWallets, airWallets, err := f.GetWallets(30)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
+	/*	richWallets, airWallets, err := f.GetWallets(30)
+		if err != nil {
+			logger.Error(err)
+			return
+		}*/
 
-	err = f.fabricTest(richWallets, airWallets)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
+	/*	err = f.fabricTest(richWallets, airWallets)
+		if err != nil {
+			logger.Error(err)
+			return
+		}*/
 }
 
 func NewFabricClient(ipport string, wg *sync.WaitGroup) (*FabricClient, error) {
