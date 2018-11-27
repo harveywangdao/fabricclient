@@ -322,14 +322,24 @@ func (f *FabricClient) testing(wg *sync.WaitGroup) {
 	tokenID, err := f.IssueToken(addr, privKey, "OCE", "10000")
 	if err != nil {
 		logger.Error(err)
-		return "", err
+		return
 	}
 
 	logger.Info("tokenID =", tokenID)
 
-	//QueryToken()
+	err = f.QueryToken(tokenID)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
 	//Tranfer()
-	//QueryBalance()
+
+	err = f.QueryBalance(addr)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
 }
 
 func NewFabricClient(ipport string, wg *sync.WaitGroup) (*FabricClient, error) {

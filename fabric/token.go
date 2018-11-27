@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
 )
 
 func (f *FabricClient) IssueToken(addr, privKey, tokenName, totalNumber string) (string, error) {
@@ -87,7 +86,7 @@ func (f *FabricClient) IssueToken(addr, privKey, tokenName, totalNumber string) 
 
 	type Response struct {
 		Status  bool   `json:"status"`
-		Msg     string `json:"msg"`
+		Msg     string `json:"message"`
 		TokenID string `json:"tokenID"`
 	}
 
@@ -98,19 +97,54 @@ func (f *FabricClient) IssueToken(addr, privKey, tokenName, totalNumber string) 
 		return "", err
 	}
 
+	if !res.Status {
+		logger.Error(res.Msg)
+		return "", errors.New(res.Msg)
+	}
+
 	logger.Info("Successfully IssueToken, tokenID =", res.TokenID)
 
 	return res.TokenID, nil
 }
 
-func (f *FabricClient) QueryToken() error {
+func (f *FabricClient) QueryToken(tokenID string) error {
+	resp, err := f.cli.Get("http://localhost:4000/ocean/v1/queryToken/" + tokenID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+	defer resp.Body.Close()
 
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	logger.Info(string(body))
+
+	return nil
 }
 
 func (f *FabricClient) Tranfer() error {
-
+	return nil
 }
 
-func (f *FabricClient) QueryBalance() error {
+func (f *FabricClient) QueryBalance(address string) error {
+	resp, err := f.cli.Get("http://localhost:4000/ocean/v1/queryBalance/" + address)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+	defer resp.Body.Close()
 
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	logger.Info(string(body))
+
+	return nil
 }
