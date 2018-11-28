@@ -333,12 +333,33 @@ func (f *FabricClient) testing(wg *sync.WaitGroup) {
 		return
 	}
 
-	//Tranfer()
-
+	f.IssueToken(addr, privKey, "OCE2", "20000")
 	err = f.QueryBalance(addr)
 	if err != nil {
 		logger.Error(err)
 		return
+	}
+
+	_, _, addr2 := util.GetNewAddress()
+	txID, err := f.Transfer(tokenID, addr, privKey, addr2, "100")
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
+	err = f.QueryTx(txID)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
+	f.QueryBalance(addr)
+	f.QueryBalance(addr2)
+
+	for i := 0; i < 10; i++ {
+		f.Transfer(tokenID, addr, privKey, addr2, "50")
+		f.QueryBalance(addr)
+		f.QueryBalance(addr2)
 	}
 }
 
