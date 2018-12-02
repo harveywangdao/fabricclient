@@ -62,7 +62,7 @@ func (f *FabricClient) IssueToken(addr, privKey, tokenName, totalNumber string) 
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", "http://localhost:4000/ocean/v1/issueToken", strings.NewReader(string(data)))
+	req, err := http.NewRequest("POST", f.urlHead+"/ocean/v1/issueToken", strings.NewReader(string(data)))
 	if err != nil {
 		logger.Error(err)
 		return "", err
@@ -108,7 +108,7 @@ func (f *FabricClient) IssueToken(addr, privKey, tokenName, totalNumber string) 
 }
 
 func (f *FabricClient) QueryToken(tokenID string) error {
-	resp, err := f.cli.Get("http://localhost:4000/ocean/v1/queryToken/" + tokenID)
+	resp, err := f.cli.Get(f.urlHead + "/ocean/v1/queryToken/" + tokenID)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -122,6 +122,26 @@ func (f *FabricClient) QueryToken(tokenID string) error {
 	}
 
 	logger.Info(string(body))
+
+	type Response struct {
+		Status bool   `json:"status"`
+		Msg    string `json:"message"`
+		Data   []byte `json:"data"`
+	}
+
+	res := Response{}
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	logger.Info(string(res.Data))
+
+	if !res.Status {
+		logger.Error(res.Msg)
+		return errors.New(res.Msg)
+	}
 
 	return nil
 }
@@ -179,7 +199,7 @@ func (f *FabricClient) Transfer(tokenID, from, fromPriv, to, num string) (string
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", "http://localhost:4000/ocean/v1/transfer", strings.NewReader(string(data)))
+	req, err := http.NewRequest("POST", f.urlHead+"/ocean/v1/transfer", strings.NewReader(string(data)))
 	if err != nil {
 		logger.Error(err)
 		return "", err
@@ -225,7 +245,7 @@ func (f *FabricClient) Transfer(tokenID, from, fromPriv, to, num string) (string
 }
 
 func (f *FabricClient) QueryTx(txID string) error {
-	resp, err := f.cli.Get("http://localhost:4000/ocean/v1/queryTx/" + txID)
+	resp, err := f.cli.Get(f.urlHead + "/ocean/v1/queryTx/" + txID)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -239,12 +259,32 @@ func (f *FabricClient) QueryTx(txID string) error {
 	}
 
 	logger.Info(string(body))
+
+	type Response struct {
+		Status bool   `json:"status"`
+		Msg    string `json:"message"`
+		Data   []byte `json:"data"`
+	}
+
+	res := Response{}
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	logger.Info(string(res.Data))
+
+	if !res.Status {
+		logger.Error(res.Msg)
+		return errors.New(res.Msg)
+	}
 
 	return nil
 }
 
 func (f *FabricClient) QueryBalance(address string) error {
-	resp, err := f.cli.Get("http://localhost:4000/ocean/v1/queryBalance/" + address)
+	resp, err := f.cli.Get(f.urlHead + "/ocean/v1/queryBalance/" + address)
 	if err != nil {
 		logger.Error(err)
 		return err
@@ -258,6 +298,26 @@ func (f *FabricClient) QueryBalance(address string) error {
 	}
 
 	logger.Info(string(body))
+
+	type Response struct {
+		Status bool   `json:"status"`
+		Msg    string `json:"message"`
+		Data   []byte `json:"data"`
+	}
+
+	res := Response{}
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	logger.Info(string(res.Data))
+
+	if !res.Status {
+		logger.Error(res.Msg)
+		return errors.New(res.Msg)
+	}
 
 	return nil
 }

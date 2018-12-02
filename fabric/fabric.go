@@ -2,303 +2,139 @@ package fabric
 
 import (
 	"encoding/json"
-	"errors"
 	"fabricclient/logger"
 	"fabricclient/util"
 	"io/ioutil"
 	"net/http"
-	"strings"
+	"os"
 	"sync"
-	"time"
 )
+
+type FabricClient struct {
+	urlHead string
+	cli     *http.Client
+	tp      *TestParam
+}
 
 type Wallet struct {
 	Address string `json:"address"`
-	PubKey  string `json:"pubKey"`
+	//PubKey  string `json:"pubKey"`
 	PrivKey string `json:"privKey"`
 }
 
-type FabricClient struct {
-	cli *http.Client
+type TestParam struct {
+	Token1Wallet Wallet `json:"token1Wallet"`
+	TokenID1     string `json:"tokenID1"`
+	Token2Wallet Wallet `json:"token2Wallet"`
+	TokenID2     string `json:"tokenID2"`
 }
 
-const (
-	Authorization = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1Mzk2NDk5NTksInVzZXJuYW1lIjoiSmltIiwib3JnTmFtZSI6Ik9yZzEiLCJpYXQiOjE1Mzk2MTM5NTl9.hL_5l4lV2CGJQY5DPZrPlTYds4P8eVfZSL6QUXcD6oo"
-)
+func (f *FabricClient) testTransfer() error {
+	tp := f.tp
 
-func (f *FabricClient) initValue(addr, num string) error {
-	type FabricReq struct {
-		Peers []string `json:"peers"`
-		Fcn   string   `json:"fcn"`
-		Args  []string `json:"args"`
+	for i := 0; i < 10; i++ {
+		f.Transfer(tp.TokenID1, tp.Token1Wallet.Address, tp.Token1Wallet.PrivKey, tp.Token2Wallet.Address, "50")
+		f.QueryBalance(tp.Token1Wallet.Address)
+		f.QueryBalance(tp.Token2Wallet.Address)
 	}
-
-	peers := []string{"peer0.org1.example.com", "peer0.org2.example.com"}
-	args := []string{addr, num}
-
-	fabricReq := &FabricReq{
-		Peers: peers,
-		Fcn:   "initValue",
-		Args:  args,
-	}
-
-	data, err := json.Marshal(fabricReq)
-	if err != nil {
-		logger.Error(err)
-		return err
-	}
-
-	req, err := http.NewRequest("POST", "http://localhost:4000/channels/mychannel/chaincodes/mycc", strings.NewReader(string(data)))
-	if err != nil {
-		logger.Error(err)
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+Authorization)
-
-	resp, err := f.cli.Do(req)
-	if err != nil {
-		logger.Error(err)
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logger.Error(err)
-		return err
-	}
-	logger.Debug(string(body))
 
 	return nil
 }
 
-func (f *FabricClient) move(from, to, num string) error {
-	type FabricReq struct {
-		Peers []string `json:"peers"`
-		Fcn   string   `json:"fcn"`
-		Args  []string `json:"args"`
+func (f *FabricClient) testApiInit() error {
+	var err error
+
+	if f.tp != nil {
+		err = f.QueryToken(f.tp.TokenID1)
+		if err == nil {
+			return nil
+		}
 	}
 
-	peers := []string{"peer0.org1.example.com", "peer0.org2.example.com"}
-	args := []string{from, to, num}
+	tp := &TestParam{}
 
-	fabricReq := &FabricReq{
-		Peers: peers,
-		Fcn:   "move",
-		Args:  args,
-	}
-
-	data, err := json.Marshal(fabricReq)
+	tp.Token1Wallet.PrivKey, _, tp.Token1Wallet.Address = util.GetNewAddress()
+	tp.TokenID1, err = f.IssueToken(tp.Token1Wallet.Address, tp.Token1Wallet.PrivKey, "OCE", "10000")
 	if err != nil {
 		logger.Error(err)
 		return err
 	}
 
-	req, err := http.NewRequest("POST", "http://localhost:4000/channels/mychannel/chaincodes/mycc", strings.NewReader(string(data)))
+	logger.Info("tp.TokenID1 =", tp.TokenID1)
+
+	err = f.QueryToken(tp.TokenID1)
 	if err != nil {
 		logger.Error(err)
 		return err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+Authorization)
-
-	resp, err := f.cli.Do(req)
+	tp.TokenID2, _ = f.IssueToken(tp.Token1Wallet.Address, tp.Token1Wallet.PrivKey, "OCE2", "20000")
+	err = f.QueryBalance(tp.Token1Wallet.Address)
 	if err != nil {
 		logger.Error(err)
 		return err
 	}
-	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	tp.Token2Wallet.PrivKey, _, tp.Token2Wallet.Address = util.GetNewAddress()
+	txID, err := f.Transfer(tp.TokenID1, tp.Token1Wallet.Address, tp.Token1Wallet.PrivKey, tp.Token2Wallet.Address, "100")
 	if err != nil {
 		logger.Error(err)
 		return err
 	}
-	logger.Debug(string(body))
+
+	err = f.QueryTx(txID)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	f.QueryBalance(tp.Token1Wallet.Address)
+	f.QueryBalance(tp.Token2Wallet.Address)
+
+	f.tp = tp
+	tpData, err := json.Marshal(tp)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	err = ioutil.WriteFile("conf/TestParam.json", tpData, os.ModePerm)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
 
 	return nil
 }
 
-func (f *FabricClient) query(addr string) (string, error) {
-	req, err := http.NewRequest("GET", "http://localhost:4000/channels/mychannel/chaincodes/mycc?peer=peer0.org1.example.com&fcn=query&args=['"+addr+"']", nil)
+func (f *FabricClient) testApi() error {
+	if util.IsFileExist("conf/TestParam.json") {
+		data, err := ioutil.ReadFile("conf/TestParam.json")
+		if err != nil {
+			logger.Error(err)
+			return err
+		}
+
+		tp := &TestParam{}
+		err = json.Unmarshal(data, tp)
+		if err != nil {
+			logger.Error(err)
+			return err
+		}
+
+		f.tp = tp
+	}
+
+	err := f.testApiInit()
 	if err != nil {
 		logger.Error(err)
-		return "0", err
+		return err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+Authorization)
-
-	resp, err := f.cli.Do(req)
+	err = f.testTransfer()
 	if err != nil {
 		logger.Error(err)
-		return "0", err
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logger.Error(err)
-		return "0", err
-	}
-
-	if len(body) == 0 {
-		logger.Error("Query fail, addr :", addr)
-		return "0", errors.New("Query fail, addr : " + addr)
-	}
-
-	logger.Debug("addr :", string(body))
-
-	return string(body), nil
-}
-
-func (f *FabricClient) GetWallets(walletCount int) ([]*Wallet, []*Wallet, error) {
-	richWallets := []*Wallet{}
-	airWallets := []*Wallet{}
-
-	for i := 0; i < walletCount; i++ {
-		w := &Wallet{
-			Address: util.GetUUID(),
-			PrivKey: "",
-		}
-		richWallets = append(richWallets, w)
-
-		w = &Wallet{
-			Address: util.GetUUID(),
-			PrivKey: "",
-		}
-		airWallets = append(airWallets, w)
-	}
-
-	return richWallets, airWallets, nil
-}
-
-func (f *FabricClient) fabricTest(richWallets, airWallets []*Wallet) error {
-	/*	addrs := []string{"vsadv", "gnbdmkbjsk"}
-
-		err := f.initValue(addrs[0], "1000")
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-
-		b, err := f.query(addrs[0])
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-		logger.Info(addrs[0], b)
-
-		err = f.move(addrs[0], addrs[1], "56")
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-
-		b, err = f.query(addrs[0])
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-		logger.Info(addrs[0], b)
-
-		b, err = f.query(addrs[1])
-		if err != nil {
-			logger.Error(err)
-			return err
-		}
-		logger.Info(addrs[1], b)
-
-		return nil
-	*/
-	/*  for _, w := range richWallets {
-	        b, err := f.query(w.Address)
-	        if err != nil {
-	            logger.Error(err)
-	            continue
-	        }
-
-	        logger.Info("richWallets", w.Address, b)
-	    }
-	    return nil
-	*/
-	var wg sync.WaitGroup
-
-	for i := 0; i < len(richWallets); i++ {
-		wg.Add(1)
-
-		go func(addr string) {
-			defer wg.Done()
-
-			time.Sleep(time.Second * 2)
-
-			logger.Info(addr, "init value start")
-
-			err := f.initValue(addr, "360")
-			if err != nil {
-				logger.Error(err)
-				return
-			}
-
-			logger.Info(addr, "init value end")
-		}(richWallets[i].Address)
-	}
-
-	wg.Wait()
-
-	for _, w := range richWallets {
-		b, err := f.query(w.Address)
-		if err != nil {
-			logger.Error(err)
-			continue
-		}
-
-		logger.Info("richWallets", w.Address, b)
-	}
-
-	for i := 0; i < len(richWallets); i++ {
-		wg.Add(1)
-
-		go func(addr, recvAddr string) {
-			defer wg.Done()
-
-			time.Sleep(time.Second * 2)
-
-			logger.Info(addr, "transfer start", recvAddr)
-
-			err := f.move(addr, recvAddr, "1")
-			if err != nil {
-				logger.Error(err)
-				return
-			}
-
-			logger.Info(addr, "transfer end", recvAddr)
-		}(richWallets[i].Address, airWallets[i].Address)
-	}
-
-	wg.Wait()
-
-	for _, w := range airWallets {
-		b, err := f.query(w.Address)
-		if err != nil {
-			logger.Error(err)
-			continue
-		}
-
-		logger.Info("airWallets", w.Address, b)
-	}
-
-	for _, w := range richWallets {
-		b, err := f.query(w.Address)
-		if err != nil {
-			logger.Error(err)
-			continue
-		}
-
-		logger.Info("richWallets", w.Address, b)
+		return err
 	}
 
 	return nil
@@ -306,60 +142,12 @@ func (f *FabricClient) fabricTest(richWallets, airWallets []*Wallet) error {
 
 func (f *FabricClient) testing(wg *sync.WaitGroup) {
 	defer wg.Done()
+	var err error
 
-	/*	richWallets, airWallets, err := f.GetWallets(30)
-		if err != nil {
-			logger.Error(err)
-			return
-		}*/
-
-	/*	err = f.fabricTest(richWallets, airWallets)
-		if err != nil {
-			logger.Error(err)
-			return
-		}*/
-	privKey, _, addr := util.GetNewAddress()
-	tokenID, err := f.IssueToken(addr, privKey, "OCE", "10000")
+	err = f.testApi()
 	if err != nil {
 		logger.Error(err)
 		return
-	}
-
-	logger.Info("tokenID =", tokenID)
-
-	err = f.QueryToken(tokenID)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	f.IssueToken(addr, privKey, "OCE2", "20000")
-	err = f.QueryBalance(addr)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	_, _, addr2 := util.GetNewAddress()
-	txID, err := f.Transfer(tokenID, addr, privKey, addr2, "100")
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	err = f.QueryTx(txID)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	f.QueryBalance(addr)
-	f.QueryBalance(addr2)
-
-	for i := 0; i < 10; i++ {
-		f.Transfer(tokenID, addr, privKey, addr2, "50")
-		f.QueryBalance(addr)
-		f.QueryBalance(addr2)
 	}
 }
 
@@ -367,6 +155,7 @@ func NewFabricClient(ipport string, wg *sync.WaitGroup) (*FabricClient, error) {
 	f := new(FabricClient)
 
 	f.cli = &http.Client{}
+	f.urlHead = "http://" + ipport
 
 	go f.testing(wg)
 
