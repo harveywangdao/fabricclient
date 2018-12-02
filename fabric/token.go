@@ -219,7 +219,7 @@ func (f *FabricClient) Transfer(tokenID, from, fromPriv, to, num string) (string
 		logger.Error(err)
 		return "", err
 	}
-	logger.Info(string(body))
+	logger.Debug(string(body))
 
 	type Response struct {
 		Status bool   `json:"status"`
@@ -297,7 +297,7 @@ func (f *FabricClient) QueryBalance(address string) error {
 		return err
 	}
 
-	logger.Info(string(body))
+	logger.Debug(string(body))
 
 	type Response struct {
 		Status bool   `json:"status"`
